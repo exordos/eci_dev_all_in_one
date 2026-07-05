@@ -9,8 +9,9 @@ on:
 
 env:
   PACKER_VERSION: "latest"
-  PYTHON_VERSION: "3.12"
-  CORE_BRANCH: "master"
+  # Exordos core element version baked into the image
+  # (empty = latest stable in the public repo).
+  CORE_VERSION: ""
 
 # TODO: we may create separate `publish` job in future
 permissions:
@@ -27,11 +28,6 @@ jobs:
         uses: hashicorp/setup-packer@main
         with:
           version: ${{ env.PACKER_VERSION }}
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install tox
-        run: pip install tox
       - name: Set up QEMU
         run: |
           sudo apt -y update
@@ -42,39 +38,31 @@ jobs:
       - name: Build image
         run: |
           ./build.sh
-      - name: Convert stand image
+      - name: Collect artifacts
         run: |
           mkdir ./packed
-          qemu-img convert -O qcow2 output/*.raw ./packed/stand.qcow2 &
-          qemu-img convert -O vdi output/*.raw ./packed/stand.vdi &
-          wait
-          mv output/*.raw ./packed/stand.raw
-          gzip --best ./packed/stand.qcow2 &
-          gzip --best ./packed/stand.vdi &
-          gzip --best ./packed/stand.raw &
-          wait
+          RAW_GZ=$(find output -name 'exordos-realm.raw.gz' | head -1)
+          cp "$RAW_GZ" ./packed/exordos-realm.raw.gz
+          # qcow2 for manual/developer usage
+          gunzip -k ./packed/exordos-realm.raw.gz
+          qemu-img convert -O qcow2 ./packed/exordos-realm.raw ./packed/exordos-realm.qcow2
+          rm ./packed/exordos-realm.raw
+          gzip --best ./packed/exordos-realm.qcow2
           # Show image sizes
           ls -la ./packed/
-      - name: Save artifact qcow2
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: qcow2 image
-          path: ./packed/stand.qcow2.gz
-          compression-level: 0
-      - name: Save artifact vdi
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: vdi image
-          path: ./packed/stand.vdi.gz
-          compression-level: 0
       - name: Save artifact raw
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4
         with:
           name: raw image
-          path: ./packed/stand.raw.gz
+          path: ./packed/exordos-realm.raw.gz
+          compression-level: 0
+      - name: Save artifact qcow2
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: qcow2 image
+          path: ./packed/exordos-realm.qcow2.gz
           compression-level: 0
       - name: Set current date as env variable
         id: date

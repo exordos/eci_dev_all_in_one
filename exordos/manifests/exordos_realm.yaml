@@ -1,0 +1,14 @@
+name: "exordos-realm"
+description: >
+  Exordos realm node image: an all-in-one hypervisor hosting a nested
+  exordos core VM. Used by the exordos ecosystem realm manager to launch
+  managed (nested) realms. The image bootstraps on first boot from
+  /etc/exordos/realm_spec.json delivered by the parent realm.
+schema_version: 1
+version: "0.1.0"
+api_version: "v1"
+
+# The image is not installed as a regular element: nodes are created
+# directly by the exordos ecosystem builder agent. This manifest exists
+# to name and version the element for the repository.
+resources: {}

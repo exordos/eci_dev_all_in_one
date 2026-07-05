@@ -1,51 +1,44 @@
 #!/bin/bash
 
-if [ "${1}" = "genesis-core-bootstrap" ]; then
+# Expose services of the nested exordos core VM on the node addresses.
+# The bootstrap domain is named `<prefix><uuid8>-exordos-core-bootstrap`
+# by the exordos CLI, hence the suffix match.
+
+case "${1}" in
+*exordos-core-bootstrap)
 
     GUEST_IP=10.20.0.2
-    HOST_LIBVIRT_INTERFACE=virbr1
-    HOST_INTERFACE_ON_BRIDGE=enp1s0
+    # External interface of the node (parent realm network side)
+    EXT_IF=$(ip route show default | awk '{print $5; exit}')
 
-    # core api
-    GUEST_PORT=11010
-    HOST_PORT=11010
-    TRANSPORT_PROTOCOL=tcp
+    forward() {
+        local proto=$1 host_port=$2 guest_port=$3 action=$4
 
-    if [ "${2}" = "stopped" ] || [ "${2}" = "reconnect" ]; then
-     /sbin/iptables -D FORWARD -o $HOST_LIBVIRT_INTERFACE -p $TRANSPORT_PROTOCOL -d $GUEST_IP --dport $GUEST_PORT -j ACCEPT
-     /sbin/iptables -t nat -D PREROUTING -i $HOST_INTERFACE_ON_BRIDGE -p $TRANSPORT_PROTOCOL --dport $HOST_PORT -j DNAT --to $GUEST_IP:$GUEST_PORT
-    fi
-    if [ "${2}" = "start" ] || [ "${2}" = "reconnect" ]; then
-     /sbin/iptables -I FORWARD 1 -o $HOST_LIBVIRT_INTERFACE -p $TRANSPORT_PROTOCOL -d $GUEST_IP --dport $GUEST_PORT -j ACCEPT
-     /sbin/iptables -t nat -I PREROUTING 1 -i $HOST_INTERFACE_ON_BRIDGE -p $TRANSPORT_PROTOCOL --dport $HOST_PORT -j DNAT --to $GUEST_IP:$GUEST_PORT
-    fi
+        if [ "$action" = "delete" ]; then
+            /sbin/iptables -D FORWARD -p $proto -d $GUEST_IP --dport $guest_port -j ACCEPT
+            /sbin/iptables -t nat -D PREROUTING -i $EXT_IF -p $proto --dport $host_port -j DNAT --to $GUEST_IP:$guest_port
+        else
+            /sbin/iptables -I FORWARD 1 -p $proto -d $GUEST_IP --dport $guest_port -j ACCEPT
+            /sbin/iptables -t nat -I PREROUTING 1 -i $EXT_IF -p $proto --dport $host_port -j DNAT --to $GUEST_IP:$guest_port
+        fi
+    }
 
-    # private DNS (tcp)
-    GUEST_PORT=5300
-    HOST_PORT=53
-    TRANSPORT_PROTOCOL=tcp
+    apply() {
+        local action=$1
 
-    if [ "${2}" = "stopped" ] || [ "${2}" = "reconnect" ]; then
-     /sbin/iptables -D FORWARD -o $HOST_LIBVIRT_INTERFACE -p $TRANSPORT_PROTOCOL -d $GUEST_IP --dport $GUEST_PORT -j ACCEPT
-     /sbin/iptables -t nat -D PREROUTING -i $HOST_INTERFACE_ON_BRIDGE -p $TRANSPORT_PROTOCOL --dport $HOST_PORT -j DNAT --to $GUEST_IP:$GUEST_PORT
-    fi
-    if [ "${2}" = "start" ] || [ "${2}" = "reconnect" ]; then
-     /sbin/iptables -I FORWARD 1 -o $HOST_LIBVIRT_INTERFACE -p $TRANSPORT_PROTOCOL -d $GUEST_IP --dport $GUEST_PORT -j ACCEPT
-     /sbin/iptables -t nat -I PREROUTING 1 -i $HOST_INTERFACE_ON_BRIDGE -p $TRANSPORT_PROTOCOL --dport $HOST_PORT -j DNAT --to $GUEST_IP:$GUEST_PORT
-    fi
-
-    # private DNS (udp)
-    GUEST_PORT=5300
-    HOST_PORT=53
-    TRANSPORT_PROTOCOL=udp
+        # core api
+        forward tcp 11010 11010 "$action"
+        # private DNS
+        forward tcp 53 5300 "$action"
+        forward udp 53 5300 "$action"
+    }
 
     if [ "${2}" = "stopped" ] || [ "${2}" = "reconnect" ]; then
-     /sbin/iptables -D FORWARD -o $HOST_LIBVIRT_INTERFACE -p $TRANSPORT_PROTOCOL -d $GUEST_IP --dport $GUEST_PORT -j ACCEPT
-     /sbin/iptables -t nat -D PREROUTING -i $HOST_INTERFACE_ON_BRIDGE -p $TRANSPORT_PROTOCOL --dport $HOST_PORT -j DNAT --to $GUEST_IP:$GUEST_PORT
+        apply delete
     fi
     if [ "${2}" = "start" ] || [ "${2}" = "reconnect" ]; then
-     /sbin/iptables -I FORWARD 1 -o $HOST_LIBVIRT_INTERFACE -p $TRANSPORT_PROTOCOL -d $GUEST_IP --dport $GUEST_PORT -j ACCEPT
-     /sbin/iptables -t nat -I PREROUTING 1 -i $HOST_INTERFACE_ON_BRIDGE -p $TRANSPORT_PROTOCOL --dport $HOST_PORT -j DNAT --to $GUEST_IP:$GUEST_PORT
+        apply insert
     fi
 
-fi
+    ;;
+esac
