@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright 2025 Genesis Corporation
+# Copyright 2026 Genesis Corporation
 #
 # All Rights Reserved.
 #
@@ -20,23 +20,10 @@ set -eu
 set -x
 set -o pipefail
 
+# CORE_VERSION pins the exordos core element version baked into the image
+# (default: latest stable in the public repo).
+# DEV_ACCESS=1 enables ubuntu:ubuntu console/ssh access (dev builds only).
 
-CORE_BRANCH=${CORE_BRANCH:-master}
+curl -fsSL https://repo.exordos.com/install.sh | sudo sh
 
-curl -fsSL https://repository.genesis-core.tech/install.sh | sudo sh
-
-#Build core image
-git clone -b "$CORE_BRANCH" https://github.com/infraguys/genesis_core.git
-cd ./genesis_core
-export ALLOW_USER_PASSWD=true
-export FREQUENT_LOG_VACUUM=true
-export GEN_IMG_FORMAT_CORE=raw
-genesis build -f . --inventory --manifest-var repository=https://repository.genesis-core.tech "$@"
-jq '.[0].images[0] = "/opt/stand/genesis_core/output/images/genesis-core.raw"' output/inventory.json > temp.json
-mv temp.json output/inventory.json
-jq '.[0].manifests[0] = "/opt/stand/genesis_core/output/manifests/core.yaml"' output/inventory.json > temp.json
-mv temp.json output/inventory.json
-cd -
-
-# Build stand image
-genesis build -s element -f . "$@"
+exordos build -f . "$@"

@@ -1,0 +1,15 @@
+[Unit]
+Description=Exordos realm first-boot bootstrap
+After=network-online.target libvirtd.service libvirtd-tcp.socket
+Wants=network-online.target libvirtd.service libvirtd-tcp.socket
+ConditionPathExists=!/var/lib/exordos-realm/.bootstrapped
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=infinity
+Environment=HOME=/root
+ExecStart=/opt/exordos-realm/exordos/images/exordos-realm-bootstrap.sh
+
+[Install]
+WantedBy=multi-user.target
