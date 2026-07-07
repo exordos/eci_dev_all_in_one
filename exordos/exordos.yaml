@@ -7,7 +7,7 @@ build:
     - dst: /opt/exordos-realm
       # Local path
       path:
-        src: ../../gci_dev_all_in_one
+        src: ../../eci_dev_all_in_one
       exclude:
         - .git
         - output
