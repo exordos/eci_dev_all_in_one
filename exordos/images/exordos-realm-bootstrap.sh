@@ -32,11 +32,6 @@ REALM_SPEC="/etc/exordos/realm_spec.json"
 ENV_FILE="/etc/exordos/realm-image.env"
 MARKER="/var/lib/exordos-realm/.bootstrapped"
 STORAGE_POOL="exordos-realm"
-# The nested core's own NAT network must not collide with the network the
-# realm node itself is attached to (both would default to 10.20.0.0/22,
-# see exordos/constants.py GC_CIDR), hence a distinct --cidr/URI here.
-NESTED_CIDR="192.168.100.0/24"
-HYPER_URI="qemu+tcp://192.168.100.1/system"
 ATTEMPTS=3
 
 if [ -f "$MARKER" ]; then
@@ -44,8 +39,13 @@ if [ -f "$MARKER" ]; then
     exit 0
 fi
 
+# Single source of truth for CORE_VERSION and the nested core network
+# (NESTED_CIDR / NESTED_GATEWAY / NESTED_CORE_IP), written at build time.
+# The nested network is deliberately distinct from the parent realm network
+# (10.20.0.0/22) so it never collides on a nested realm node.
 # shellcheck source=/dev/null
 . "$ENV_FILE"
+HYPER_URI="qemu+tcp://${NESTED_GATEWAY}/system"
 
 echo "Waiting for the realm spec at $REALM_SPEC ..."
 while [ ! -s "$REALM_SPEC" ]; do
