@@ -29,11 +29,12 @@ build:
           # Override the exordos CLI installer URL (local testing).
           - EXORDOS_INSTALL_URL
 
-        # OS profile for the image. The default base image of the
-        # `exordos_custom` profile is exordos-base, which ships the
-        # universal agent — required to receive the realm spec config
-        # from the parent realm.
-        profile: exordos_custom
+        # OS profile for the image. exordos_base builds on the exordos-base
+        # image, which ships the universal agent — required to receive the
+        # realm spec config from the parent realm. (The exordos_custom
+        # profile targets the same base but is not shipped by the released
+        # exordos CLI; all other elements use exordos_base too.)
+        profile: exordos_base
 
         # Provisioning script
         script: images/install.sh
