@@ -2,7 +2,7 @@
 
 An all-in-one hypervisor image hosting a nested exordos core VM. It is the
 node image used by the [exordos ecosystem realm
-manager](https://github.com/infraguys/exordos_ecosystem) to launch **managed
+manager](https://github.com/exordos/exordos_ecosystem) to launch **managed
 (nested) realms**: the ecosystem builder agent creates a node from this image
 in the central realm and delivers a realm spec to it; the node bootstraps a
 fully working exordos core installation with the pre-assigned realm identity.
@@ -72,8 +72,8 @@ For a laptop stand, grab the **dev** artifact published by CI (built with
 `DEV_ACCESS=1`) — the plain `exordos-realm.*` release assets have no console
 access:
 
-- [exordos-realm-dev.qcow2.zst](https://github.com/infraguys/eci_dev_all_in_one/releases/latest/download/exordos-realm-dev.qcow2.zst)
-- [exordos-realm-dev.raw.zst](https://github.com/infraguys/eci_dev_all_in_one/releases/latest/download/exordos-realm-dev.raw.zst)
+- [exordos-realm-dev.qcow2.zst](https://github.com/exordos/eci_dev_all_in_one/releases/latest/download/exordos-realm-dev.qcow2.zst)
+- [exordos-realm-dev.raw.zst](https://github.com/exordos/eci_dev_all_in_one/releases/latest/download/exordos-realm-dev.raw.zst)
 
 Or build it yourself with `DEV_ACCESS=1 ./build.sh`. Run the image in your
 preferred virtualization software; **nested VT-x/AMD-V must be enabled** for
