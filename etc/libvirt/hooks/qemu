@@ -7,9 +7,26 @@
 case "${1}" in
 *exordos-core-bootstrap)
 
-    GUEST_IP=10.20.0.2
-    # External interface of the node (parent realm network side)
-    EXT_IF=$(ip route show default | awk '{print $5; exit}')
+    # Nested core address comes from the single source of truth written at
+    # build time (see exordos/images/install.sh); keeps this hook in sync
+    # with the bootstrap --cidr.
+    ENV_FILE=/etc/exordos/realm-image.env
+    # shellcheck source=/dev/null
+    [ -r "$ENV_FILE" ] && . "$ENV_FILE"
+    GUEST_IP=${NESTED_CORE_IP:-}
+    if [ -z "$GUEST_IP" ]; then
+        echo "libvirt hook: NESTED_CORE_IP not set ($ENV_FILE), skipping port forwarding" >&2
+        exit 0
+    fi
+
+    # External interface of the node (parent realm network side).
+    # jq is installed on the image; parse the default-route dev reliably
+    # instead of a positional awk field (breaks on gateway-less routes).
+    EXT_IF=$(ip -j route show default | jq -r '.[0].dev // empty')
+    if [ -z "$EXT_IF" ]; then
+        echo "libvirt hook: no default route interface, skipping port forwarding" >&2
+        exit 0
+    fi
 
     forward() {
         local proto=$1 host_port=$2 guest_port=$3 action=$4

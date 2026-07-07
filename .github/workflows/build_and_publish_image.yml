@@ -13,14 +13,25 @@ env:
   # (empty = latest stable in the public repo).
   CORE_VERSION: ""
 
-# TODO: we may create separate `publish` job in future
 permissions:
   contents: write
 
 jobs:
-  build_n_publish:
+  build:
     runs-on: ubuntu-latest
-    name: Build Image
+    name: Build ${{ matrix.variant }} image
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Production node image used by the ecosystem builder (no console).
+          - variant: prod
+            dev_access: ""
+            artifact_base: exordos-realm
+          # Developer stand: DEV_ACCESS=1 enables ubuntu:ubuntu access.
+          - variant: dev
+            dev_access: "1"
+            artifact_base: exordos-realm-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,41 +47,48 @@ jobs:
           sudo adduser $USER kvm
           sudo chmod +666 /dev/kvm
       - name: Build image
+        env:
+          DEV_ACCESS: ${{ matrix.dev_access }}
         run: |
           ./build.sh
       - name: Collect artifacts
+        env:
+          ARTIFACT_BASE: ${{ matrix.artifact_base }}
         run: |
           mkdir ./packed
           RAW_GZ=$(find output -name 'exordos-realm.raw.gz' | head -1)
-          cp "$RAW_GZ" ./packed/exordos-realm.raw.gz
+          cp "$RAW_GZ" "./packed/${ARTIFACT_BASE}.raw.gz"
           # qcow2 for manual/developer usage
-          gunzip -k ./packed/exordos-realm.raw.gz
-          qemu-img convert -O qcow2 ./packed/exordos-realm.raw ./packed/exordos-realm.qcow2
-          rm ./packed/exordos-realm.raw
-          gzip --best ./packed/exordos-realm.qcow2
+          gunzip -k "./packed/${ARTIFACT_BASE}.raw.gz"
+          qemu-img convert -O qcow2 "./packed/${ARTIFACT_BASE}.raw" "./packed/${ARTIFACT_BASE}.qcow2"
+          rm "./packed/${ARTIFACT_BASE}.raw"
+          gzip --best "./packed/${ARTIFACT_BASE}.qcow2"
           # Show image sizes
           ls -la ./packed/
-      - name: Save artifact raw
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+      - name: Save build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: raw image
-          path: ./packed/exordos-realm.raw.gz
+          name: ${{ matrix.artifact_base }}
+          path: ./packed/*
           compression-level: 0
-      - name: Save artifact qcow2
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@v4
+
+  publish:
+    name: Publish images
+    needs: build
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: qcow2 image
-          path: ./packed/exordos-realm.qcow2.gz
-          compression-level: 0
+          path: ./packed
+          merge-multiple: true
       - name: Set current date as env variable
         id: date
         run: |
           r=$(date -u +'%Y.%m.%d')
           echo "DATE=$r" >> $GITHUB_OUTPUT
-      - name: Publish image (for master branch only)
-        if: github.ref == 'refs/heads/master'
+      - name: Publish images
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}

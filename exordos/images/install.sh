@@ -25,6 +25,16 @@ REPO_URL="https://repo.exordos.com"
 STORAGE_POOL="exordos-realm"
 STORAGE_POOL_PATH="/var/lib/exordos-realm/disks"
 
+# Nested core VM network. Single source of truth, baked into
+# /etc/exordos/realm-image.env and consumed by BOTH the first-boot
+# bootstrap (--cidr / --hyper-connection-uri) and the libvirt port-forward
+# hook (GUEST_IP). Kept distinct from the parent realm network
+# (10.20.0.0/22, see exordos/constants.py GC_CIDR) so it never collides
+# when this node is itself a nested realm node.
+NESTED_CIDR="192.168.100.0/24"
+NESTED_GATEWAY="192.168.100.1"
+NESTED_CORE_IP="192.168.100.2"
+
 # Optimize apt
 echo 'APT::Install-Recommends "false";' | sudo tee -a /etc/apt/apt.conf.d/99exordos.conf > /dev/null
 echo 'APT::Install-Suggests "false";' | sudo tee -a /etc/apt/apt.conf.d/99exordos.conf > /dev/null
@@ -50,10 +60,11 @@ sudo apt-get install -y \
 # Do NOT set for published images: access to managed realm nodes is
 # governed by the parent core (ssh key / user capabilities).
 if [ "${DEV_ACCESS:-0}" = "1" ]; then
-    sudo apt-get install -y yq
     echo "ubuntu:ubuntu" | sudo chpasswd
     sudo rm -f /etc/ssh/sshd_config.d/60-cloudimg-settings.conf
-    sudo yq -yi '.system_info.default_user.lock_passwd |= false' /etc/cloud/cloud.cfg
+    # Unlock the default user's password. cloud.cfg ships "lock_passwd: True";
+    # sed avoids pulling in yq just for this one line.
+    sudo sed -i -E 's/(lock_passwd:[[:space:]]*)([Tt]rue)/\1false/' /etc/cloud/cloud.cfg
 fi
 
 # RAM/swap optimizations: the node hosts a nested core VM.
@@ -71,7 +82,10 @@ echo "KSM_SLEEP_MSEC=100" | sudo tee -a /etc/ksmtuned.conf > /dev/null
 sudo systemctl enable ksmtuned
 
 # libvirt install breaks dns, fix it temporarily
-sudo resolvectl dns "$(ip -j route show default | jq -r '.[0].dev')" 1.1.1.1 || true
+DEFAULT_IF=$(ip -j route show default | jq -r '.[0].dev // empty')
+if [ -n "$DEFAULT_IF" ]; then
+    sudo resolvectl dns "$DEFAULT_IF" 1.1.1.1 || true
+fi
 
 # The exordos bootstrap CLI talks to the hypervisor over tcp
 sudo tee -a /etc/libvirt/libvirtd.conf > /dev/null <<EOL
@@ -87,6 +101,11 @@ sudo systemctl start libvirtd
 
 # Storage pool for the nested core VM disks
 sudo mkdir -p "$STORAGE_POOL_PATH"
+# libvirtd may not accept connections immediately after start; wait for it
+for _ in $(seq 1 10); do
+    sudo virsh uri >/dev/null 2>&1 && break
+    sleep 1
+done
 sudo virsh pool-define-as --name "$STORAGE_POOL" --type dir --target "$STORAGE_POOL_PATH"
 sudo virsh pool-start "$STORAGE_POOL"
 sudo virsh pool-autostart "$STORAGE_POOL"
@@ -103,6 +122,7 @@ net.ipv4.ip_forward=1
 EOL
 
 # Speed up nested VM boot
+sudo mkdir -p /usr/share/qemu
 sudo curl -fsSL "$REPO_URL/1af41041/latest/1af41041.rom" --output /usr/share/qemu/1af41041.rom
 
 # Install the exordos CLI (provides `exordos bootstrap`).
@@ -117,6 +137,11 @@ if [ -z "$CORE_VERSION" ]; then
         | sort -V | tail -1)
 fi
 
+if [ -z "$CORE_VERSION" ] || [ "$CORE_VERSION" = "null" ]; then
+    echo "Error: failed to resolve CORE_VERSION from $REPO_URL" >&2
+    exit 1
+fi
+
 # Pre-warm the element cache (core + ecosystem_realm inventories) so the
 # first-boot bootstrap does not need to download anything.
 sudo HOME=/root exordos bootstrap --download-only -i "$CORE_VERSION"
@@ -124,7 +149,12 @@ sudo HOME=/root exordos bootstrap --download-only -i "$CORE_VERSION"
 # First-boot bootstrap: waits for /etc/exordos/realm_spec.json delivered
 # by the parent realm, then bootstraps the nested core VM with it.
 sudo mkdir -p /etc/exordos /var/lib/exordos-realm
-echo "CORE_VERSION=$CORE_VERSION" | sudo tee /etc/exordos/realm-image.env > /dev/null
+sudo tee /etc/exordos/realm-image.env > /dev/null <<EOL
+CORE_VERSION=$CORE_VERSION
+NESTED_CIDR=$NESTED_CIDR
+NESTED_GATEWAY=$NESTED_GATEWAY
+NESTED_CORE_IP=$NESTED_CORE_IP
+EOL
 sudo chmod +x "$EL_PATH/exordos/images/exordos-realm-bootstrap.sh"
 sudo cp "$EL_PATH/etc/systemd/exordos-realm-bootstrap.service" /etc/systemd/system/
 sudo systemctl enable exordos-realm-bootstrap.service

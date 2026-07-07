@@ -35,8 +35,8 @@ graph TD;
 
 Exposed on the node addresses (via libvirt hook):
 
-- `11010/tcp` — nested core API (proxied to `10.20.0.2:11010`)
-- `53/tcp+udp` — private DNS of the nested core (proxied to `10.20.0.2:5300`)
+- `11010/tcp` — nested core API (proxied to `192.168.100.2:11010`)
+- `53/tcp+udp` — private DNS of the nested core (proxied to `192.168.100.2:5300`)
 
 ## Requirements
 
@@ -62,11 +62,23 @@ ecosystem builder expects it at
 `https://repo.exordos.com/exordos-elements/exordos-realm/<version>/images/exordos-realm.raw.gz`
 (see `[builder] default_realm_image` in exordos_ecosystem).
 
+CI builds two variants: the production `exordos-realm.*` (no console access,
+used by the ecosystem builder) and `exordos-realm-dev.*` (`DEV_ACCESS=1`, for
+laptop developer stands — see [Developer stand](#developer-stand)).
+
 ## Developer stand
 
-Build with `DEV_ACCESS=1` and run the image in your preferred virtualization
-software (nested VT-x/AMD-V required). Default username/password:
-`ubuntu:ubuntu`.
+For a laptop stand, grab the **dev** artifact published by CI (built with
+`DEV_ACCESS=1`) — the plain `exordos-realm.*` release assets have no console
+access:
+
+- [exordos-realm-dev.qcow2.gz](https://github.com/infraguys/gci_dev_all_in_one/releases/latest/download/exordos-realm-dev.qcow2.gz)
+- [exordos-realm-dev.raw.gz](https://github.com/infraguys/gci_dev_all_in_one/releases/latest/download/exordos-realm-dev.raw.gz)
+
+Or build it yourself with `DEV_ACCESS=1 ./build.sh`. Run the image in your
+preferred virtualization software; **nested VT-x/AMD-V must be enabled** for
+the machine that runs it (the stand starts its own KVM guest — check with
+`kvm-ok` inside the VM). Default username/password: `ubuntu:ubuntu`.
 
 Without a delivered realm spec the first-boot unit keeps waiting; bootstrap
 the nested core manually (self-registration path):
@@ -75,7 +87,8 @@ the nested core manually (self-registration path):
 sudo -i
 . /etc/exordos/realm-image.env
 exordos bootstrap -m core -i "$CORE_VERSION" -f \
-    --hyper-connection-uri qemu+tcp://10.20.0.1/system \
+    --cidr "$NESTED_CIDR" \
+    --hyper-connection-uri "qemu+tcp://${NESTED_GATEWAY}/system" \
     --hyper-storage-pool exordos-realm \
     --no-registration
 ```
@@ -84,5 +97,5 @@ Or simulate the managed flow by writing `/etc/exordos/realm_spec.json`
 yourself (see the contract in exordos_ecosystem `docs/realm-manager.md`) —
 the first-boot unit picks it up.
 
-- Core API: `http://NODE_IP:11010` (proxied to the nested VM `10.20.0.2`)
+- Core API: `http://NODE_IP:11010` (proxied to the nested VM `192.168.100.2`)
 - Nested VM login: `ubuntu:ubuntu`
