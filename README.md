@@ -57,9 +57,9 @@ libvirt-daemon-system libvirt-dev mkisofs`.
 CORE_VERSION=0.1.13 DEV_ACCESS=1 ./build.sh
 ```
 
-The artifact is `output/.../images/exordos-realm.raw.gz`; the exordos
+The artifact is `output/.../images/exordos-realm.raw.zst`; the exordos
 ecosystem builder expects it at
-`https://repo.exordos.com/exordos-elements/exordos-realm/<version>/images/exordos-realm.raw.gz`
+`https://repo.exordos.com/exordos-elements/exordos-realm/<version>/images/exordos-realm.raw.zst`
 (see `[builder] default_realm_image` in exordos_ecosystem).
 
 CI builds two variants: the production `exordos-realm.*` (no console access,
@@ -72,8 +72,8 @@ For a laptop stand, grab the **dev** artifact published by CI (built with
 `DEV_ACCESS=1`) — the plain `exordos-realm.*` release assets have no console
 access:
 
-- [exordos-realm-dev.qcow2.gz](https://github.com/infraguys/gci_dev_all_in_one/releases/latest/download/exordos-realm-dev.qcow2.gz)
-- [exordos-realm-dev.raw.gz](https://github.com/infraguys/gci_dev_all_in_one/releases/latest/download/exordos-realm-dev.raw.gz)
+- [exordos-realm-dev.qcow2.zst](https://github.com/infraguys/gci_dev_all_in_one/releases/latest/download/exordos-realm-dev.qcow2.zst)
+- [exordos-realm-dev.raw.zst](https://github.com/infraguys/gci_dev_all_in_one/releases/latest/download/exordos-realm-dev.raw.zst)
 
 Or build it yourself with `DEV_ACCESS=1 ./build.sh`. Run the image in your
 preferred virtualization software; **nested VT-x/AMD-V must be enabled** for

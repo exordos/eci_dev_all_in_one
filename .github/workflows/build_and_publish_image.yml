@@ -42,7 +42,7 @@ jobs:
       - name: Set up QEMU
         run: |
           sudo apt -y update
-          sudo apt install -y qemu-system-amd64 qemu-kvm qemu-utils libvirt-daemon-system libvirt-dev mkisofs zip
+          sudo apt install -y qemu-system-amd64 qemu-kvm qemu-utils libvirt-daemon-system libvirt-dev mkisofs zip zstd
           sudo adduser $USER libvirt
           sudo adduser $USER kvm
           sudo chmod +666 /dev/kvm
@@ -56,13 +56,13 @@ jobs:
           ARTIFACT_BASE: ${{ matrix.artifact_base }}
         run: |
           mkdir ./packed
-          RAW_GZ=$(find output -name 'exordos-realm.raw.gz' | head -1)
-          cp "$RAW_GZ" "./packed/${ARTIFACT_BASE}.raw.gz"
+          RAW_ZST=$(find output -name 'exordos-realm.raw.zst' | head -1)
+          cp "$RAW_ZST" "./packed/${ARTIFACT_BASE}.raw.zst"
           # qcow2 for manual/developer usage
-          gunzip -k "./packed/${ARTIFACT_BASE}.raw.gz"
+          zstd -d "./packed/${ARTIFACT_BASE}.raw.zst" -o "./packed/${ARTIFACT_BASE}.raw"
           qemu-img convert -O qcow2 "./packed/${ARTIFACT_BASE}.raw" "./packed/${ARTIFACT_BASE}.qcow2"
           rm "./packed/${ARTIFACT_BASE}.raw"
-          gzip --best "./packed/${ARTIFACT_BASE}.qcow2"
+          zstd -19 -T0 --rm "./packed/${ARTIFACT_BASE}.qcow2"
           # Show image sizes
           ls -la ./packed/
       - name: Save build artifacts
