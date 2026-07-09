@@ -72,17 +72,33 @@ jobs:
           path: ./packed/*
           compression-level: 0
 
+      # Publish the production element to repo.exordos.com so the ecosystem
+      # realm builder can pull it from its default_realm_image URL
+      # (https://repo.exordos.com/exordos-elements/exordos-realm/latest/...).
+      # `exordos build` already wrote the standard output/exordos-elements/
+      # tree; `exordos push --latest` mirrors it and refreshes the `latest`
+      # alias. The dev variant stays on GitHub Releases (manual dev use only).
+      - name: Publish exordos-realm to repo.exordos.com
+        if: github.ref == 'refs/heads/master' && matrix.variant == 'prod'
+        env:
+          PUSH_EXORDOS_CFG: ${{ secrets.PUSH_EXORDOS_CFG }}
+        run: |
+          echo "$PUSH_EXORDOS_CFG" | base64 -d > exordos/exordos.push.yaml
+          exordos push -c exordos/exordos.push.yaml -e output -t exordos_repo -f --latest
+
+  # The production image ships to repo.exordos.com (see the build job). Only
+  # the developer image goes to GitHub Releases, for manual stand usage.
   publish:
-    name: Publish images
+    name: Publish dev image
     needs: build
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
-      - name: Download build artifacts
+      - name: Download dev build artifact
         uses: actions/download-artifact@v4
         with:
+          name: exordos-realm-dev
           path: ./packed
-          merge-multiple: true
       - name: Set current date as env variable
         id: date
         run: |
