@@ -26,14 +26,12 @@ STORAGE_POOL="exordos-realm"
 STORAGE_POOL_PATH="/var/lib/exordos-realm/disks"
 
 # Nested core VM network. Single source of truth, baked into
-# /etc/exordos/realm-image.env and consumed by BOTH the first-boot
-# bootstrap (--cidr / --hyper-connection-uri) and the libvirt port-forward
-# hook (GUEST_IP). Kept distinct from the parent realm network
-# (10.20.0.0/22, see exordos/constants.py GC_CIDR) so it never collides
-# when this node is itself a nested realm node.
+# /etc/exordos/realm-image.env and consumed by the first-boot bootstrap
+# (--cidr / --hyper-connection-uri). Kept distinct from the parent realm
+# network (10.20.0.0/22, see exordos/constants.py GC_CIDR) so it never
+# collides when this node is itself a nested realm node.
 NESTED_CIDR="192.168.100.0/24"
 NESTED_GATEWAY="192.168.100.1"
-NESTED_CORE_IP="192.168.100.2"
 
 # Optimize apt
 echo 'APT::Install-Recommends "false";' | sudo tee -a /etc/apt/apt.conf.d/99exordos.conf > /dev/null
@@ -110,12 +108,10 @@ sudo virsh pool-define-as --name "$STORAGE_POOL" --type dir --target "$STORAGE_P
 sudo virsh pool-start "$STORAGE_POOL"
 sudo virsh pool-autostart "$STORAGE_POOL"
 
-# iptables rules are order-sensitive, so set appropriate rules via libvirt
-# hooks: they expose the nested core API (11010) and private DNS (53) on
-# the node addresses.
-sudo mkdir -p /etc/libvirt/hooks
-sudo cp "$EL_PATH/etc/libvirt/hooks/qemu" /etc/libvirt/hooks/
-sudo chmod +x /etc/libvirt/hooks/qemu
+# Exposing the nested core (core API 11010, private DNS 53) on the node
+# addresses and SNAT'ing the nested subnet out is done by the control-plane
+# `border` resource (border_node capability) that the parent realm delivers
+# once the node registers — no static libvirt hook needed.
 
 sudo tee -a /etc/sysctl.conf > /dev/null <<EOL
 net.ipv4.ip_forward=1
@@ -153,7 +149,6 @@ sudo tee /etc/exordos/realm-image.env > /dev/null <<EOL
 CORE_VERSION=$CORE_VERSION
 NESTED_CIDR=$NESTED_CIDR
 NESTED_GATEWAY=$NESTED_GATEWAY
-NESTED_CORE_IP=$NESTED_CORE_IP
 EOL
 sudo chmod +x "$EL_PATH/exordos/images/exordos-realm-bootstrap.sh"
 sudo cp "$EL_PATH/etc/systemd/exordos-realm-bootstrap.service" /etc/systemd/system/
