@@ -33,7 +33,8 @@ graph TD;
    (uuid/secret/tokens) and admin password from the spec, self-reports to the
    ecosystem, and the managed realm flips to `ACTIVE`.
 
-Exposed on the node addresses (via libvirt hook):
+Exposed on the node addresses by the control-plane `border` resource
+(`border_node`, delivered by the parent realm once the node registers):
 
 - `11010/tcp` — nested core API (proxied to `192.168.100.2:11010`)
 - `53/tcp+udp` — private DNS of the nested core (proxied to `192.168.100.2:5300`)
@@ -97,5 +98,12 @@ Or simulate the managed flow by writing `/etc/exordos/realm_spec.json`
 yourself (see the contract in exordos_ecosystem `docs/realm-manager.md`) —
 the first-boot unit picks it up.
 
-- Core API: `http://NODE_IP:11010` (proxied to the nested VM `192.168.100.2`)
+Standalone there is no parent realm to deliver the `border` resource, so
+the nested core is **not** proxied onto the node addresses. Reach it
+directly from inside the stand (SSH in first):
+
+- Core API: `http://192.168.100.2:11010`
 - Nested VM login: `ubuntu:ubuntu`
+
+(To expose it on the node's own address, add a forward yourself, e.g.
+`socat`/`iptables`, or deliver a realm spec so the managed flow runs.)
