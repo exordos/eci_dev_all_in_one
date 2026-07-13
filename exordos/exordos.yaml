@@ -23,6 +23,9 @@ build:
           # Exordos core element version to bake into the image.
           # Defaults to the latest stable version in the public repo.
           - CORE_VERSION
+          # Element repository to fetch core/ecosystem_realm from (local
+          # testing against a mirror not yet published to the public repo).
+          - ELEMENT_REPOSITORY
           # Set to "1" for developer builds to enable ubuntu:ubuntu
           # console/ssh access.
           - DEV_ACCESS

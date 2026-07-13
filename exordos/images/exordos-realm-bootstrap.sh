@@ -57,6 +57,7 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
     if exordos bootstrap \
         -m core \
         -i "$CORE_VERSION" \
+        --repository "${ELEMENT_REPOSITORY:-https://repo.exordos.com}" \
         -f \
         --cidr "$NESTED_CIDR" \
         --hyper-connection-uri "$HYPER_URI" \
