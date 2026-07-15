@@ -31,6 +31,10 @@ build:
           - DEV_ACCESS
           # Override the exordos CLI installer URL (local testing).
           - EXORDOS_INSTALL_URL
+          # Override the gcl_sdk install source (defaults to the latest
+          # PyPI release). Point at a wheel built from a local checkout to
+          # test unreleased SDK changes (e.g. a new capability driver).
+          - GCL_SDK_WHEEL_URL
 
         # OS profile for the image. exordos_base builds on the exordos-base
         # image, which ships the universal agent — required to receive the
