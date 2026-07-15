@@ -112,6 +112,23 @@ sudo virsh pool-autostart "$STORAGE_POOL"
 # addresses and SNAT'ing the nested subnet out is done by the control-plane
 # `border` resource (border_node capability) that the parent realm delivers
 # once the node registers — no static libvirt hook needed.
+#
+# The border driver (BorderCapabilityDriver) ships in gcl_sdk. Upgrade the
+# universal agent's gcl_sdk to the latest PyPI release so border support is
+# picked up automatically once released there.
+# GCL_SDK_WHEEL_URL overrides the install source (e.g. a wheel built from a
+# local gcl_sdk checkout and served from the dev repo) to test an unreleased
+# SDK build before it ships to PyPI.
+UA_VENV="/opt/universal_agent/.venv"
+UA_CONF="/etc/exordos_universal_agent/exordos_universal_agent.conf"
+sudo "$UA_VENV/bin/pip" install --upgrade "${GCL_SDK_WHEEL_URL:-gcl_sdk}"
+if sudo "$UA_VENV/bin/python" -c "import gcl_sdk.agents.universal.drivers.border" 2>/dev/null; then
+    if ! grep -q "BorderCapabilityDriver" "$UA_CONF"; then
+        sudo awk '/caps_drivers =/{print; print "    BorderCapabilityDriver,"; next}1' \
+            "$UA_CONF" | sudo tee "$UA_CONF.tmp" > /dev/null
+        sudo mv "$UA_CONF.tmp" "$UA_CONF"
+    fi
+fi
 
 sudo tee -a /etc/sysctl.conf > /dev/null <<EOL
 net.ipv4.ip_forward=1
