@@ -1,4 +1,4 @@
-name: packer
+name: build_publish
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
     - cron: "0 0 * * 0"
 
 env:
-  PACKER_VERSION: "latest"
+  PACKER_VERSION: "1.9.2"
   # Exordos core element version baked into the image
   # (empty = latest stable in the public repo).
   CORE_VERSION: ""
@@ -18,7 +18,8 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, vm]
+    if: ${{ github.actor != 'dependabot[bot]' }}
     name: Build ${{ matrix.variant }} image
     strategy:
       fail-fast: false
@@ -34,82 +35,23 @@ jobs:
             artifact_base: exordos-realm-dev
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup `packer`
-        uses: hashicorp/setup-packer@main
-        with:
-          version: ${{ env.PACKER_VERSION }}
-      - name: Set up QEMU
-        run: |
-          sudo apt -y update
-          sudo apt install -y qemu-system-amd64 qemu-kvm qemu-utils libvirt-daemon-system libvirt-dev mkisofs zip zstd
-          sudo adduser $USER libvirt
-          sudo adduser $USER kvm
-          sudo chmod +666 /dev/kvm
+        uses: actions/checkout@v7
       - name: Build image
         env:
           DEV_ACCESS: ${{ matrix.dev_access }}
-        run: |
-          ./build.sh
-      - name: Collect artifacts
-        env:
-          ARTIFACT_BASE: ${{ matrix.artifact_base }}
-        run: |
-          mkdir ./packed
-          RAW_ZST=$(find output -name 'exordos-realm.raw.zst' | head -1)
-          cp "$RAW_ZST" "./packed/${ARTIFACT_BASE}.raw.zst"
-          # qcow2 for manual/developer usage
-          zstd -d "./packed/${ARTIFACT_BASE}.raw.zst" -o "./packed/${ARTIFACT_BASE}.raw"
-          qemu-img convert -O qcow2 "./packed/${ARTIFACT_BASE}.raw" "./packed/${ARTIFACT_BASE}.qcow2"
-          rm "./packed/${ARTIFACT_BASE}.raw"
-          zstd -19 -T0 --rm "./packed/${ARTIFACT_BASE}.qcow2"
-          # Show image sizes
-          ls -la ./packed/
-      - name: Save build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_base }}
-          path: ./packed/*
-          compression-level: 0
-
-      # Publish the production element to repo.exordos.com so the ecosystem
-      # realm builder can pull it from its default_realm_image URL
-      # (https://repo.exordos.com/exordos-elements/exordos-realm/latest/...).
-      # `exordos build` already wrote the standard output/exordos-elements/
-      # tree; `exordos push --latest` mirrors it and refreshes the `latest`
-      # alias. The dev variant stays on GitHub Releases (manual dev use only).
-      - name: Publish exordos-realm to repo.exordos.com
+        run: exordos build -f . "$@"
+      - name: Publish exordos-realm-prod to repo.exordos.com
         if: github.ref == 'refs/heads/master' && matrix.variant == 'prod'
         env:
           PUSH_EXORDOS_CFG: ${{ secrets.PUSH_EXORDOS_CFG }}
+          PUSH_CFG: ${{ secrets.PUSH_CFG }}
         run: |
-          echo "$PUSH_EXORDOS_CFG" | base64 -d > exordos/exordos.push.yaml
-          exordos push -c exordos/exordos.push.yaml -e output -t exordos_repo -f --latest
-
-  # The production image ships to repo.exordos.com (see the build job). Only
-  # the developer image goes to GitHub Releases, for manual stand usage.
-  publish:
-    name: Publish dev image
-    needs: build
-    if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download dev build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: exordos-realm-dev
-          path: ./packed
-      - name: Set current date as env variable
-        id: date
+          echo "$PUSH_CFG" | base64 -d > exordos/exordos.push.yaml
+          exordos push -c exordos/exordos.push.yaml -t local -f --latest
+      - name: Publish exordos-realm-dev to repo.exordos.com
+        if: github.ref != 'refs/heads/master' && matrix.variant == 'dev'
+        env:
+          PUSH_CFG: ${{ secrets.PUSH_CFG }}
         run: |
-          r=$(date -u +'%Y.%m.%d')
-          echo "DATE=$r" >> $GITHUB_OUTPUT
-      - name: Publish images
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./packed/*
-          tag: ${{ github.ref }}
-          release_name: ${{ steps.date.outputs.DATE }}
-          overwrite: true
-          file_glob: true
+          echo "$PUSH_CFG" | base64 -d > exordos/exordos.push.yaml
+          exordos push -c exordos/exordos.push.yaml -t local -f
