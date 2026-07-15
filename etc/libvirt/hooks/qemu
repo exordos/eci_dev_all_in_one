@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# Expose the nested core's LB (tenant HTTP/HTTPS ingress, ports 80/443) on
+# the node addresses. Only installed on DEV_ACCESS=1 (standalone developer
+# stand) builds: managed realm nodes get the same 80/443 forward from the
+# parent realm's `border` control-plane resource instead (see
+# exordos_ecosystem RealmInfra._create_border), so this hook would be
+# redundant there.
+#
+# The bootstrap domain is named `<prefix><uuid8>-exordos-core-bootstrap`
+# by the exordos CLI, hence the suffix match.
+
+case "${1}" in
+*exordos-core-bootstrap)
+
+    # Nested core address comes from the single source of truth written at
+    # build time (see exordos/images/install.sh); keeps this hook in sync
+    # with the bootstrap --cidr.
+    ENV_FILE=/etc/exordos/realm-image.env
+    # shellcheck source=/dev/null
+    [ -r "$ENV_FILE" ] && . "$ENV_FILE"
+    GUEST_IP=${NESTED_CORE_IP:-}
+    if [ -z "$GUEST_IP" ]; then
+        echo "libvirt hook: NESTED_CORE_IP not set ($ENV_FILE), skipping port forwarding" >&2
+        exit 0
+    fi
+
+    # External interface of the node (parent realm network side).
+    # jq is installed on the image; parse the default-route dev reliably
+    # instead of a positional awk field (breaks on gateway-less routes).
+    EXT_IF=$(ip -j route show default | jq -r '.[0].dev // empty')
+    if [ -z "$EXT_IF" ]; then
+        echo "libvirt hook: no default route interface, skipping port forwarding" >&2
+        exit 0
+    fi
+
+    forward() {
+        local proto=$1 host_port=$2 guest_port=$3 action=$4
+
+        # Always try to delete first to prevent duplicates and clean up cleanly
+        /sbin/iptables -D FORWARD -p $proto -d $GUEST_IP --dport $guest_port -j ACCEPT 2>/dev/null || true
+        /sbin/iptables -t nat -D PREROUTING -i $EXT_IF -p $proto --dport $host_port -j DNAT --to $GUEST_IP:$guest_port 2>/dev/null || true
+
+        if [ "$action" != "delete" ]; then
+            /sbin/iptables -I FORWARD 1 -p $proto -d $GUEST_IP --dport $guest_port -j ACCEPT
+            /sbin/iptables -t nat -I PREROUTING 1 -i $EXT_IF -p $proto --dport $host_port -j DNAT --to $GUEST_IP:$guest_port
+        fi
+    }
+
+    apply() {
+        local action=$1
+
+        # core LB (tenant HTTP/HTTPS ingress)
+        forward tcp 80 80 "$action"
+        forward tcp 443 443 "$action"
+    }
+
+    if [ "${2}" = "stopped" ] || [ "${2}" = "reconnect" ]; then
+        apply delete
+    fi
+    if [ "${2}" = "start" ] || [ "${2}" = "reconnect" ]; then
+        apply insert
+    fi
+
+    exit 0
+    ;;
+esac

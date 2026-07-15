@@ -40,7 +40,7 @@ if [ -f "$MARKER" ]; then
 fi
 
 # Single source of truth for CORE_VERSION and the nested core network
-# (NESTED_CIDR / NESTED_GATEWAY), written at build time.
+# (NESTED_CIDR / NESTED_GATEWAY / NESTED_CORE_IP), written at build time.
 # The nested network is deliberately distinct from the parent realm network
 # (10.20.0.0/22) so it never collides on a nested realm node.
 # shellcheck source=/dev/null

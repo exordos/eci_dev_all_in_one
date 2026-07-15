@@ -38,6 +38,8 @@ Exposed on the node addresses by the control-plane `border` resource
 
 - `11010/tcp` — nested core API (proxied to `192.168.100.2:11010`)
 - `53/tcp+udp` — private DNS of the nested core (proxied to `192.168.100.2:5300`)
+- `80/tcp`, `443/tcp` — nested core LB, tenant HTTP/HTTPS ingress (proxied to
+  `192.168.100.2:80` / `192.168.100.2:443`)
 
 ## Requirements
 
@@ -98,12 +100,16 @@ Or simulate the managed flow by writing `/etc/exordos/realm_spec.json`
 yourself (see the contract in exordos_ecosystem `docs/realm-manager.md`) —
 the first-boot unit picks it up.
 
-Standalone there is no parent realm to deliver the `border` resource, so
-the nested core is **not** proxied onto the node addresses. Reach it
-directly from inside the stand (SSH in first):
+Standalone there is no parent realm to deliver the `border` resource, but
+`DEV_ACCESS=1` builds install a static libvirt hook
+(`etc/libvirt/hooks/qemu`) that forwards the nested core's LB (tenant
+HTTP/HTTPS ingress) onto the node addresses:
+
+- `80/tcp`, `443/tcp` — nested core LB (proxied to `192.168.100.2:80` /
+  `192.168.100.2:443`)
+
+The raw core API (`11010`) and private DNS (`53`) are not forwarded; reach
+those directly from inside the stand (SSH in first):
 
 - Core API: `http://192.168.100.2:11010`
 - Nested VM login: `ubuntu:ubuntu`
-
-(To expose it on the node's own address, add a forward yourself, e.g.
-`socat`/`iptables`, or deliver a realm spec so the managed flow runs.)

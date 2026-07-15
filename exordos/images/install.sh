@@ -32,6 +32,7 @@ STORAGE_POOL_PATH="/var/lib/exordos-realm/disks"
 # collides when this node is itself a nested realm node.
 NESTED_CIDR="192.168.100.0/24"
 NESTED_GATEWAY="192.168.100.1"
+NESTED_CORE_IP="192.168.100.2"
 
 # Optimize apt
 echo 'APT::Install-Recommends "false";' | sudo tee -a /etc/apt/apt.conf.d/99exordos.conf > /dev/null
@@ -54,15 +55,23 @@ sudo apt-get install -y \
     qemu-system-modules-spice \
     iptables-persistent
 
-# Developer builds only: enable console/ssh password access.
-# Do NOT set for published images: access to managed realm nodes is
-# governed by the parent core (ssh key / user capabilities).
+# Developer builds only: enable console/ssh password access, and expose the
+# nested core's LB (ports 80/443) on the node addresses via a libvirt hook.
+# Do NOT set for published images: on managed realm nodes, access is
+# governed by the parent core (ssh key / user capabilities) and 80/443 are
+# already forwarded by the control-plane `border` resource the parent realm
+# delivers — a static hook there would be redundant.
 if [ "${DEV_ACCESS:-0}" = "1" ]; then
     echo "ubuntu:ubuntu" | sudo chpasswd
     sudo rm -f /etc/ssh/sshd_config.d/60-cloudimg-settings.conf
     # Unlock the default user's password. cloud.cfg ships "lock_passwd: True";
     # sed avoids pulling in yq just for this one line.
     sudo sed -i -E 's/(lock_passwd:[[:space:]]*)([Tt]rue)/\1false/' /etc/cloud/cloud.cfg
+
+    # iptables rules are order-sensitive, so set them via a libvirt hook.
+    sudo mkdir -p /etc/libvirt/hooks
+    sudo cp "$EL_PATH/etc/libvirt/hooks/qemu" /etc/libvirt/hooks/
+    sudo chmod +x /etc/libvirt/hooks/qemu
 fi
 
 # RAM/swap optimizations: the node hosts a nested core VM.
@@ -108,14 +117,12 @@ sudo virsh pool-define-as --name "$STORAGE_POOL" --type dir --target "$STORAGE_P
 sudo virsh pool-start "$STORAGE_POOL"
 sudo virsh pool-autostart "$STORAGE_POOL"
 
-# Exposing the nested core (core API 11010, private DNS 53) on the node
-# addresses and SNAT'ing the nested subnet out is done by the control-plane
+# On managed realm nodes, SNAT'ing the nested subnet out (and forwarding
+# 11010/53/80/443 onto the node addresses) is done by the control-plane
 # `border` resource (border_node capability) that the parent realm delivers
-# once the node registers — no static libvirt hook needed.
-#
-# The border driver (BorderCapabilityDriver) ships in gcl_sdk. Upgrade the
-# universal agent's gcl_sdk to the latest PyPI release so border support is
-# picked up automatically once released there.
+# once the node registers. The border driver (BorderCapabilityDriver) ships
+# in gcl_sdk. Upgrade the universal agent's gcl_sdk to the latest PyPI
+# release so border support is picked up automatically once released there.
 # GCL_SDK_WHEEL_URL overrides the install source (e.g. a wheel built from a
 # local gcl_sdk checkout and served from the dev repo) to test an unreleased
 # SDK build before it ships to PyPI.
@@ -172,6 +179,7 @@ CORE_VERSION=$CORE_VERSION
 ELEMENT_REPOSITORY=$ELEMENT_REPOSITORY
 NESTED_CIDR=$NESTED_CIDR
 NESTED_GATEWAY=$NESTED_GATEWAY
+NESTED_CORE_IP=$NESTED_CORE_IP
 EOL
 sudo chmod +x "$EL_PATH/exordos/images/exordos-realm-bootstrap.sh"
 sudo cp "$EL_PATH/etc/systemd/exordos-realm-bootstrap.service" /etc/systemd/system/
