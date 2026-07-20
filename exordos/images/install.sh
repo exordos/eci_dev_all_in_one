@@ -169,7 +169,7 @@ fi
 
 # Pre-warm the element cache (core + ecosystem_realm inventories) so the
 # first-boot bootstrap does not need to download anything.
-sudo HOME=/root exordos bootstrap --download-only -i "$CORE_VERSION" --repository "$ELEMENT_REPOSITORY"
+sudo HOME=/root exordos bootstrap --download-only -i "$CORE_VERSION" --repository "$ELEMENT_REPOSITORY/exordos-elements"
 
 # First-boot bootstrap: waits for /etc/exordos/realm_spec.json delivered
 # by the parent realm, then bootstraps the nested core VM with it.
