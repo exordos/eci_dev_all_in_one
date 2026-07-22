@@ -29,7 +29,8 @@ set -u
 set -o pipefail
 
 REALM_SPEC="/etc/exordos/realm_spec.json"
-ENV_FILE="/etc/exordos/realm-image.env"
+BUILD_ENV_FILE="/etc/exordos/realm-image.env"
+ENV_FILE="/etc/exordos/realm.env"
 MARKER="/var/lib/exordos-realm/.bootstrapped"
 STORAGE_POOL="exordos-realm"
 ATTEMPTS=3
@@ -44,7 +45,11 @@ fi
 # The nested network is deliberately distinct from the parent realm network
 # (10.20.0.0/22) so it never collides on a nested realm node.
 # shellcheck source=/dev/null
-. "$ENV_FILE"
+. "$BUILD_ENV_FILE"
+if [ -f "$ENV_FILE" ]; then
+    . "$ENV_FILE"
+fi
+
 HYPER_URI="qemu+tcp://${NESTED_GATEWAY}/system"
 
 echo "Waiting for the realm spec at $REALM_SPEC ..."
@@ -54,10 +59,10 @@ done
 echo "Realm spec found, bootstrapping the nested core VM"
 
 for attempt in $(seq 1 "$ATTEMPTS"); do
-    if exordos bootstrap \
+    if sudo -u ubuntu exordos bootstrap \
         -m core \
         -i "$CORE_VERSION" \
-        --repository "${ELEMENT_REPOSITORY:-https://repo.exordos.com}" \
+        --repository "${ELEMENT_REPOSITORY:-https://repo.exordos.com/exordos-elements/}" \
         -f \
         --cidr "$NESTED_CIDR" \
         --hyper-connection-uri "$HYPER_URI" \

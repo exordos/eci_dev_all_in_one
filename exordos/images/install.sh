@@ -22,6 +22,7 @@ set -o pipefail
 
 EL_PATH="/opt/exordos-realm"
 REPO_URL="https://repo.exordos.com"
+REPO_ELEMENTS_URL="$REPO_URL/exordos-elements"
 STORAGE_POOL="exordos-realm"
 STORAGE_POOL_PATH="/var/lib/exordos-realm/disks"
 
@@ -147,17 +148,17 @@ sudo curl -fsSL "$REPO_URL/1af41041/latest/1af41041.rom" --output /usr/share/qem
 
 # Install the exordos CLI (provides `exordos bootstrap`).
 # EXORDOS_INSTALL_URL allows testing with a locally served installer.
-curl -fsSL "${EXORDOS_INSTALL_URL:-$REPO_URL/install.sh}" | sudo sh
+curl -fsSL "${EXORDOS_INSTALL_URL:-$REPO_URL/install.sh}" | sh
 
 # Element repository to fetch the core/ecosystem_realm elements from. Defaults
 # to the public repo; override for local/dev testing against a mirror (e.g.
 # a repository serving a not-yet-released core build).
-ELEMENT_REPOSITORY="${ELEMENT_REPOSITORY:-$REPO_URL}"
+ELEMENT_REPOSITORY="${ELEMENT_REPOSITORY:-$REPO_ELEMENTS_URL}"
 
 # Resolve the core element version to bake (latest stable by default)
 CORE_VERSION="${CORE_VERSION:-}"
 if [ -z "$CORE_VERSION" ]; then
-    CORE_VERSION=$(curl -fsSL --compressed "$ELEMENT_REPOSITORY/exordos-elements/inventory.json" \
+    CORE_VERSION=$(curl -fsSL --compressed "$ELEMENT_REPOSITORY/inventory.json" \
         | jq -r '.elements.core | keys[] | select(contains("-") | not)' \
         | sort -V | tail -1)
 fi
@@ -169,7 +170,8 @@ fi
 
 # Pre-warm the element cache (core + ecosystem_realm inventories) so the
 # first-boot bootstrap does not need to download anything.
-sudo HOME=/root exordos bootstrap --download-only -i "$CORE_VERSION" --repository "$ELEMENT_REPOSITORY/exordos-elements"
+exordos bootstrap --download-only -i "$CORE_VERSION" --repository "$ELEMENT_REPOSITORY"
+exordos autocomplete --shell bash
 
 # First-boot bootstrap: waits for /etc/exordos/realm_spec.json delivered
 # by the parent realm, then bootstraps the nested core VM with it.

@@ -20,38 +20,19 @@ jobs:
   build:
     runs-on: [self-hosted, vm]
     if: ${{ github.actor != 'dependabot[bot]' }}
-    name: Build ${{ matrix.variant }} image
+    name: Build realm image
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # Production node image used by the ecosystem builder (no console).
-          - variant: prod
-            dev_access: ""
-            artifact_base: exordos-realm
-          # Developer stand: DEV_ACCESS=1 enables ubuntu:ubuntu access.
-          - variant: dev
-            dev_access: "1"
-            artifact_base: exordos-realm-dev
     steps:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Build image
         env:
-          DEV_ACCESS: ${{ matrix.dev_access }}
+          DEV_ACCESS: ${{ github.ref_type != 'tag' && github.ref_name != 'master' && '1' || '' }}
         run: exordos build -f . "$@"
-      - name: Publish exordos-realm-prod to repo.exordos.com
-        if: github.ref == 'refs/heads/master' && matrix.variant == 'prod'
+      - name: Publish exordos-realm to repo.exordos.com
         env:
-          PUSH_EXORDOS_CFG: ${{ secrets.PUSH_EXORDOS_CFG }}
           PUSH_CFG: ${{ secrets.PUSH_CFG }}
         run: |
           echo "$PUSH_CFG" | base64 -d > exordos/exordos.push.yaml
           exordos push -c exordos/exordos.push.yaml -t local -f --latest
-      - name: Publish exordos-realm-dev to repo.exordos.com
-        if: github.ref != 'refs/heads/master' && matrix.variant == 'dev'
-        env:
-          PUSH_CFG: ${{ secrets.PUSH_CFG }}
-        run: |
-          echo "$PUSH_CFG" | base64 -d > exordos/exordos.push.yaml
-          exordos push -c exordos/exordos.push.yaml -t local -f
