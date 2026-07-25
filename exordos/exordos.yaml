@@ -22,7 +22,36 @@ build:
         envs:
           # Exordos core element version to bake into the image.
           # Defaults to the latest stable version in the public repo.
-          - CORE_VERSION
+          - INVENTORY
+          # Element repository to fetch core/ecosystem_realm from (local
+          # testing against a mirror not yet published to the public repo).
+          - ELEMENT_REPOSITORY
+          # Override the exordos CLI installer URL (local testing).
+          - EXORDOS_INSTALL_URL
+          # Override the gcl_sdk install source (defaults to the latest
+          # PyPI release). Point at a wheel built from a local checkout to
+          # test unreleased SDK changes (e.g. a new capability driver).
+          - GCL_SDK_WHEEL_URL
+
+        # OS profile for the image. exordos_base builds on the exordos-base
+        # image, which ships the universal agent — required to receive the
+        # realm spec config from the parent realm. (The exordos_custom
+        # profile targets the same base but is not shipped by the released
+        # exordos CLI; all other elements use exordos_base too.)
+        profile: exordos_base
+
+        # Provisioning script
+        script: images/install.sh
+        override:
+          disk_size: "20G"
+          memory: 8192
+          cpus: 2
+      - name: exordos-realm-dev
+        format: zst
+        envs:
+          # Exordos core element version to bake into the image.
+          # Defaults to the latest stable version in the public repo.
+          - INVENTORY
           # Element repository to fetch core/ecosystem_realm from (local
           # testing against a mirror not yet published to the public repo).
           - ELEMENT_REPOSITORY

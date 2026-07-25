@@ -156,36 +156,57 @@ curl -fsSL "${EXORDOS_INSTALL_URL:-$REPO_URL/install.sh}" | sh
 ELEMENT_REPOSITORY="${ELEMENT_REPOSITORY:-$REPO_ELEMENTS_URL}"
 
 # Resolve the core element version to bake (latest stable by default)
-CORE_VERSION="${CORE_VERSION:-}"
-if [ -z "$CORE_VERSION" ]; then
-    CORE_VERSION=$(curl -fsSL --compressed "$ELEMENT_REPOSITORY/inventory.json" \
+INVENTORY="${INVENTORY:-}"
+if [ -z "$INVENTORY" ]; then
+    INVENTORY=$(curl -fsSL --compressed "$ELEMENT_REPOSITORY/inventory.json" \
         | jq -r '.elements.core | keys[] | select(contains("-") | not)' \
         | sort -V | tail -1)
 fi
 
-if [ -z "$CORE_VERSION" ] || [ "$CORE_VERSION" = "null" ]; then
-    echo "Error: failed to resolve CORE_VERSION from $ELEMENT_REPOSITORY" >&2
+if [ -z "$INVENTORY" ] || [ "$INVENTORY" = "null" ]; then
+    echo "Error: failed to resolve INVENTORY from $ELEMENT_REPOSITORY" >&2
     exit 1
 fi
 
 # Pre-warm the element cache (core + ecosystem_realm inventories) so the
 # first-boot bootstrap does not need to download anything.
-exordos bootstrap --download-only -i "$CORE_VERSION" --repository "$ELEMENT_REPOSITORY"
+sudo -u ubuntu exordos bootstrap --download-only -i "$INVENTORY" --repository "$ELEMENT_REPOSITORY"
 exordos autocomplete --shell bash
+sudo -u ubuntu exordos autocomplete --shell bash
 
 # First-boot bootstrap: waits for /etc/exordos/realm_spec.json delivered
 # by the parent realm, then bootstraps the nested core VM with it.
 sudo mkdir -p /etc/exordos /var/lib/exordos-realm
 sudo tee /etc/exordos/realm-image.env > /dev/null <<EOL
-CORE_VERSION=$CORE_VERSION
+INVENTORY=$INVENTORY
 ELEMENT_REPOSITORY=$ELEMENT_REPOSITORY
 NESTED_CIDR=$NESTED_CIDR
 NESTED_GATEWAY=$NESTED_GATEWAY
 NESTED_CORE_IP=$NESTED_CORE_IP
 EOL
+sudo tee /etc/exordos/realm_spec.json.example > /dev/null <<EOL
+{
+  "version": 1,
+  "realm_uuid": "c0ffee00-0000-4000-8000-000000000000",
+  "realm_name": "customer-realm",
+  "realm_domain": "c0ffee.exordos.io",
+  "realm_secret": "852a3e7d9c0326259391fb3bfced449e02a161a7f4c8ede7a1d538801d8a42fe00494681fd80428fa1649fdcf6f08510cc3fecd7189098c932d4d58c51bfc2e3",
+  "ecosystem_endpoint": "http://exordos.io",
+  "admin_password": "admin",
+  "realm_tokens": {
+    "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MTY2NzQxMzAsImlhdCI6MTc4NTEzODEzMCwiYXV0aF90aW1lIjoxNzg1MTM4MTMwLCJqdGkiOiI2NzI1NzAxYS01ZjY0LTQ0NzgtOTI4OS0wNWQ0ZTBmYzE3ZmQiLCJpc3MiOiJodHRwOi8vY29yZS5sb2NhbC5nZW5lc2lzLWNvcmUudGVjaDo4MC9hcGkvY29yZS92MS9pYW0vY2xpZW50cy9kZWZhdWx0L2lhbS9jbGllbnRzLzM4OWRjMjdlLTA0MDctNGQzOC1iNzg4LTkxMjVhODE5MWQ1MiIsImF1ZCI6ImV4b3Jkb3MiLCJzdWIiOiI2YTU3ODE2YS0xZmVkLTQ2ODctYmZlZC1mMTI4MGJmMjdmZGMiLCJ0eXAiOiJCZWFyZXIiLCJvdHAiOmZhbHNlfQ.sRGt-C-m8MWdXlQnQu78Yf9dm2RojFS2iBW_COI754q_glNQaPG5ia5vxkuUVbucLafUAbVlo-Q8tRdW0VWTlJIVoTI6JKcfl1HvFPz7fL_TvL4FNWST7n3fGfBFaKHGbSehob6xqXLA-DkwN6obSe_BaKfKWtKMM8qI-uGvPomfFl-nA9DlYl7dnUDuesfyxjUCWb3CtfCNMcbAmCufPnzxzEviu_ZIho2botIea1a5TP2Bw06VXoqsmuNqZAriNqQfUD2FXJo2CZalF-cfwJ72gOhPYtBXb4EfLdrStouYOrnWVmyHSEjq2gvLrcQHsNrT5hySyZWMyp1WfP2Fzw",
+    "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3ODUyMjQ1MzAsImlhdCI6MTc4NTEzODEzMCwianRpIjoiMjFiYzUyYWEtNzdjYy00ODE4LWI2MWQtYzVkN2JjZjBhMzc3IiwiaXNzIjoiaHR0cDovL2NvcmUubG9jYWwuZ2VuZXNpcy1jb3JlLnRlY2g6ODAvYXBpL2NvcmUvdjEvaWFtL2NsaWVudHMvZGVmYXVsdC9pYW0vY2xpZW50cy8zODlkYzI3ZS0wNDA3LTRkMzgtYjc4OC05MTI1YTgxOTFkNTIiLCJhdWQiOiJleG9yZG9zIiwic3ViIjoiNmE1NzgxNmEtMWZlZC00Njg3LWJmZWQtZjEyODBiZjI3ZmRjIn0.QIln4ohvVYmLEy-YCJRqdGB3O_dPkVn0lY9FrGYgqZwhcuGWn_mCYaNlYO37v9OQFLrqwR1mVNnnZ45p-RKYsxmhk36LUPRoMZ6uCuvkcxnIhVz57AtmE-qYx5F7nR9gy8NI_I-r-IhvjPgrbwTCZ9-x6jmBgaB6cE4CuydqgnbJhJtAjuV1Ss7jiA4YTVHEmaH5oyQ-jdfMxr2hpiYhrdtCgDrarBd1vEDG2X9w9RzR67LnDgbVotxG2HIjlRTfvwsWbt7po2HVVcVDEStXCd2-zMhvSuvA40sP4eyPx1557Rwfjx8HdK_9beNrLWQXvaF89jGzJrXJApQEqXX4HQ"
+  },
+  "disable_telemetry": false,
+  "core_version": null,
+  "ssh_public_key": null
+}
+EOL
 sudo chmod +x "$EL_PATH/exordos/images/exordos-realm-bootstrap.sh"
 sudo cp "$EL_PATH/etc/systemd/exordos-realm-bootstrap.service" /etc/systemd/system/
 sudo systemctl enable exordos-realm-bootstrap.service
+sudo chown -R ubuntu:ubuntu /etc/exordos
+sudo chown -R ubuntu:ubuntu /var/lib/exordos-realm
 
 # Minimize image size, MUST be last before shutdown
 sudo apt-get clean
