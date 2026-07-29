@@ -57,7 +57,7 @@ libvirt-daemon-system libvirt-dev mkisofs`.
 ./build.sh
 
 # Pin the baked core element version and/or enable dev access
-CORE_VERSION=0.1.13 DEV_ACCESS=1 ./build.sh
+INVENTORY=0.1.13 DEV_ACCESS=1 ./build.sh
 ```
 
 The artifact is `output/.../images/exordos-realm.raw.zst`; the exordos
@@ -89,7 +89,7 @@ the nested core manually (self-registration path):
 ```bash
 sudo -i
 . /etc/exordos/realm-image.env
-exordos bootstrap -m core -i "$CORE_VERSION" -f \
+exordos bootstrap -m core -i "$INVENTORY" -f \
     --cidr "$NESTED_CIDR" \
     --hyper-connection-uri "qemu+tcp://${NESTED_GATEWAY}/system" \
     --hyper-storage-pool exordos-realm \

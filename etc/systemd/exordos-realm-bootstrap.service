@@ -8,7 +8,8 @@ ConditionPathExists=!/var/lib/exordos-realm/.bootstrapped
 Type=oneshot
 RemainAfterExit=yes
 TimeoutStartSec=infinity
-Environment=HOME=/root
+User=ubuntu
+Group=ubuntu
 ExecStart=/opt/exordos-realm/exordos/images/exordos-realm-bootstrap.sh
 
 [Install]

@@ -40,15 +40,12 @@ if [ -f "$MARKER" ]; then
     exit 0
 fi
 
-# Single source of truth for CORE_VERSION and the nested core network
+# Single source of truth for INVENTORY and the nested core network
 # (NESTED_CIDR / NESTED_GATEWAY / NESTED_CORE_IP), written at build time.
 # The nested network is deliberately distinct from the parent realm network
 # (10.20.0.0/22) so it never collides on a nested realm node.
 # shellcheck source=/dev/null
 . "$BUILD_ENV_FILE"
-if [ -f "$ENV_FILE" ]; then
-    . "$ENV_FILE"
-fi
 
 HYPER_URI="qemu+tcp://${NESTED_GATEWAY}/system"
 
@@ -56,12 +53,18 @@ echo "Waiting for the realm spec at $REALM_SPEC ..."
 while [ ! -s "$REALM_SPEC" ]; do
     sleep 5
 done
+
 echo "Realm spec found, bootstrapping the nested core VM"
 
+if [ -f "$ENV_FILE" ]; then
+    . "$ENV_FILE"
+    echo "env file $ENV_FILE found, sourced"
+fi
+
 for attempt in $(seq 1 "$ATTEMPTS"); do
-    if sudo -u ubuntu exordos bootstrap \
+    if exordos bootstrap \
         -m core \
-        -i "$CORE_VERSION" \
+        -i "$INVENTORY" \
         --repository "${ELEMENT_REPOSITORY:-https://repo.exordos.com/exordos-elements/}" \
         -f \
         --cidr "$NESTED_CIDR" \
