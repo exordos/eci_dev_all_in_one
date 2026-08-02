@@ -11,7 +11,7 @@ env:
   PACKER_VERSION: "1.9.2"
   # Exordos core element version baked into the image
   # (empty = latest stable in the public repo).
-  INVENTORY: ""
+  INVENTORY: "0.2.10-dev+20260802200842.90c7f471"
 
 permissions:
   contents: write

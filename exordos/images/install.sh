@@ -22,7 +22,7 @@ set -o pipefail
 
 EL_PATH="/opt/exordos-realm"
 REPO_URL="https://repo.exordos.com"
-REPO_ELEMENTS_URL="$REPO_URL/exordos-elements"
+REPO_ELEMENTS_URL="$REPO_URL/exordos-elements/"
 STORAGE_POOL="exordos-realm"
 STORAGE_POOL_PATH="/var/lib/exordos-realm/disks"
 
@@ -155,18 +155,7 @@ curl -fsSL "${EXORDOS_INSTALL_URL:-$REPO_URL/install.sh}" | sh
 # a repository serving a not-yet-released core build).
 ELEMENT_REPOSITORY="${ELEMENT_REPOSITORY:-$REPO_ELEMENTS_URL}"
 
-# Resolve the core element version to bake (latest stable by default)
-INVENTORY="${INVENTORY:-}"
-if [ -z "$INVENTORY" ]; then
-    INVENTORY=$(curl -fsSL --compressed "$ELEMENT_REPOSITORY/inventory.json" \
-        | jq -r '.elements.core | keys[] | select(contains("-") | not)' \
-        | sort -V | tail -1)
-fi
-
-if [ -z "$INVENTORY" ] || [ "$INVENTORY" = "null" ]; then
-    echo "Error: failed to resolve INVENTORY from $ELEMENT_REPOSITORY" >&2
-    exit 1
-fi
+INVENTORY="${INVENTORY:-latest}"
 
 # Pre-warm the element cache (core + ecosystem_realm inventories) so the
 # first-boot bootstrap does not need to download anything.
