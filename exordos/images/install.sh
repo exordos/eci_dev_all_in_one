@@ -89,35 +89,6 @@ sudo apt-get install -y ksmtuned
 echo "KSM_SLEEP_MSEC=100" | sudo tee -a /etc/ksmtuned.conf > /dev/null
 sudo systemctl enable ksmtuned
 
-# libvirt install breaks dns, fix it temporarily
-DEFAULT_IF=$(ip -j route show default | jq -r '.[0].dev // empty')
-if [ -n "$DEFAULT_IF" ]; then
-    sudo resolvectl dns "$DEFAULT_IF" 1.1.1.1 || true
-fi
-
-# The exordos bootstrap CLI talks to the hypervisor over tcp
-sudo tee -a /etc/libvirt/libvirtd.conf > /dev/null <<EOL
-listen_tcp = 1
-listen_addr = "0.0.0.0"
-auth_tcp = "none"
-EOL
-
-sudo systemctl stop libvirtd
-sudo systemctl enable libvirtd-tcp.socket
-sudo systemctl start libvirtd-tcp.socket
-sudo systemctl start libvirtd
-
-# Storage pool for the nested core VM disks
-sudo mkdir -p "$STORAGE_POOL_PATH"
-# libvirtd may not accept connections immediately after start; wait for it
-for _ in $(seq 1 10); do
-    sudo virsh uri >/dev/null 2>&1 && break
-    sleep 1
-done
-sudo virsh pool-define-as --name "$STORAGE_POOL" --type dir --target "$STORAGE_POOL_PATH"
-sudo virsh pool-start "$STORAGE_POOL"
-sudo virsh pool-autostart "$STORAGE_POOL"
-
 # On managed realm nodes, SNAT'ing the nested subnet out (and forwarding
 # 11010/53/80/443 onto the node addresses) is done by the control-plane
 # `border` resource (border_node capability) that the parent realm delivers
@@ -170,7 +141,7 @@ fi
 
 # Pre-warm the element cache (core + ecosystem_realm inventories) so the
 # first-boot bootstrap does not need to download anything.
-sudo -u ubuntu exordos bootstrap --download-only -i "$INVENTORY" --repository "$ELEMENT_REPOSITORY"
+sudo -u ubuntu exordos bootstrap --download-only -i "$INVENTORY" --repository "$ELEMENT_REPOSITORY/"
 exordos autocomplete --shell bash
 sudo -u ubuntu exordos autocomplete --shell bash
 
@@ -179,7 +150,7 @@ sudo -u ubuntu exordos autocomplete --shell bash
 sudo mkdir -p /etc/exordos /var/lib/exordos-realm
 sudo tee /etc/exordos/realm-image.env > /dev/null <<EOL
 INVENTORY=$INVENTORY
-ELEMENT_REPOSITORY=$ELEMENT_REPOSITORY
+ELEMENT_REPOSITORY=$ELEMENT_REPOSITORY/
 NESTED_CIDR=$NESTED_CIDR
 NESTED_GATEWAY=$NESTED_GATEWAY
 NESTED_CORE_IP=$NESTED_CORE_IP
@@ -203,13 +174,39 @@ sudo tee /etc/exordos/realm_spec.json.example > /dev/null <<EOL
 }
 EOL
 sudo chmod +x "$EL_PATH/exordos/images/exordos-realm-bootstrap.sh"
-# Applies a spec re-delivered after the first boot -- the parent realm's
-# on_change hook runs it, see exordos-realm-reconfigure.sh.
-sudo chmod +x "$EL_PATH/exordos/images/exordos-realm-reconfigure.sh"
 sudo cp "$EL_PATH/etc/systemd/exordos-realm-bootstrap.service" /etc/systemd/system/
 sudo systemctl enable exordos-realm-bootstrap.service
 sudo chown -R ubuntu:ubuntu /etc/exordos
 sudo chown -R ubuntu:ubuntu /var/lib/exordos-realm
+
+# libvirt install breaks dns, fix it temporarily
+DEFAULT_IF=$(ip -j route show default | jq -r '.[0].dev // empty')
+if [ -n "$DEFAULT_IF" ]; then
+    sudo resolvectl dns "$DEFAULT_IF" 1.1.1.1 || true
+fi
+
+# The exordos bootstrap CLI talks to the hypervisor over tcp
+sudo tee -a /etc/libvirt/libvirtd.conf > /dev/null <<EOL
+listen_tcp = 1
+listen_addr = "0.0.0.0"
+auth_tcp = "none"
+EOL
+
+sudo systemctl stop libvirtd
+sudo systemctl enable libvirtd-tcp.socket
+sudo systemctl start libvirtd-tcp.socket
+sudo systemctl start libvirtd
+
+# Storage pool for the nested core VM disks
+sudo mkdir -p "$STORAGE_POOL_PATH"
+# libvirtd may not accept connections immediately after start; wait for it
+for _ in $(seq 1 10); do
+    sudo virsh uri >/dev/null 2>&1 && break
+    sleep 1
+done
+sudo virsh pool-define-as --name "$STORAGE_POOL" --type dir --target "$STORAGE_POOL_PATH"
+sudo virsh pool-start "$STORAGE_POOL"
+sudo virsh pool-autostart "$STORAGE_POOL"
 
 # Minimize image size, MUST be last before shutdown
 sudo apt-get clean

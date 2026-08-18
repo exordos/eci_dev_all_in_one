@@ -9,9 +9,7 @@ on:
 
 env:
   PACKER_VERSION: "1.9.2"
-  # Exordos core element version baked into the image
-  # (empty = latest stable in the public repo).
-  INVENTORY: ""
+  INVENTORY: "0.2.33-dev+20260923160142.58a710ab"
 
 permissions:
   contents: write
@@ -26,6 +24,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Build image
         env:
           DEV_ACCESS: 1
