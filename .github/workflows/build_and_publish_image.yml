@@ -9,7 +9,7 @@ on:
 
 env:
   PACKER_VERSION: "1.9.2"
-  INVENTORY: "0.2.33-dev+20260923160142.58a710ab"
+  INVENTORY: "0.2.32-dev+20260928064836.5e45a9fc"
 
 permissions:
   contents: write

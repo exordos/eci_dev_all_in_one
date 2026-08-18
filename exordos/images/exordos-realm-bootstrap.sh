@@ -47,8 +47,6 @@ fi
 # shellcheck source=/dev/null
 . "$BUILD_ENV_FILE"
 
-HYPER_URI="qemu+tcp://${NESTED_GATEWAY}/system"
-
 echo "Waiting for the realm spec at $REALM_SPEC ..."
 while [ ! -s "$REALM_SPEC" ]; do
     sleep 5
@@ -60,6 +58,8 @@ if [ -f "$ENV_FILE" ]; then
     . "$ENV_FILE"
     echo "env file $ENV_FILE found, sourced"
 fi
+
+HYPER_URI="qemu+tcp://${NESTED_GATEWAY}/system"
 
 for attempt in $(seq 1 "$ATTEMPTS"); do
     if exordos bootstrap \
