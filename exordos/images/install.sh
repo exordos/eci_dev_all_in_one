@@ -170,7 +170,7 @@ fi
 
 # Pre-warm the element cache (core + ecosystem_realm inventories) so the
 # first-boot bootstrap does not need to download anything.
-sudo -u ubuntu exordos bootstrap --download-only -i "$INVENTORY" --repository "$ELEMENT_REPOSITORY"
+sudo -u ubuntu exordos bootstrap --download-only -i "$INVENTORY" --repository "$ELEMENT_REPOSITORY/"
 exordos autocomplete --shell bash
 sudo -u ubuntu exordos autocomplete --shell bash
 
@@ -179,7 +179,7 @@ sudo -u ubuntu exordos autocomplete --shell bash
 sudo mkdir -p /etc/exordos /var/lib/exordos-realm
 sudo tee /etc/exordos/realm-image.env > /dev/null <<EOL
 INVENTORY=$INVENTORY
-ELEMENT_REPOSITORY=$ELEMENT_REPOSITORY
+ELEMENT_REPOSITORY=$ELEMENT_REPOSITORY/
 NESTED_CIDR=$NESTED_CIDR
 NESTED_GATEWAY=$NESTED_GATEWAY
 NESTED_CORE_IP=$NESTED_CORE_IP
@@ -209,7 +209,7 @@ sudo chown -R ubuntu:ubuntu /etc/exordos
 sudo chown -R ubuntu:ubuntu /var/lib/exordos-realm
 
 # Minimize image size, MUST be last before shutdown
-sudo apt-get clean
+#sudo apt-get clean
 sudo rm -rf /var/lib/apt/lists/*
 sudo rm -rf /tmp/*
 sudo sync
