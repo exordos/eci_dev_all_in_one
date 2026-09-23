@@ -203,6 +203,9 @@ sudo tee /etc/exordos/realm_spec.json.example > /dev/null <<EOL
 }
 EOL
 sudo chmod +x "$EL_PATH/exordos/images/exordos-realm-bootstrap.sh"
+# Applies a spec re-delivered after the first boot -- the parent realm's
+# on_change hook runs it, see exordos-realm-reconfigure.sh.
+sudo chmod +x "$EL_PATH/exordos/images/exordos-realm-reconfigure.sh"
 sudo cp "$EL_PATH/etc/systemd/exordos-realm-bootstrap.service" /etc/systemd/system/
 sudo systemctl enable exordos-realm-bootstrap.service
 sudo chown -R ubuntu:ubuntu /etc/exordos
