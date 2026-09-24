@@ -109,6 +109,26 @@ if sudo "$UA_VENV/bin/python" -c "import gcl_sdk.agents.universal.drivers.border
     fi
 fi
 
+# The parent realm may run an LB on this node (LB type `node`, paas_lb_node
+# capability), e.g. the realm's element repository. LBCapabilityDriver
+# renders nginx: L7 into conf.d, L4 (`stream`) into /etc/nginx/exordos/,
+# which must be included at the top level -- same layout as exordos-lbaas.
+# 80/443 on the node are DNAT'd to the nested core by the border, so the
+# stock default site is dropped instead of kept listening there.
+sudo apt-get install -y nginx-full
+sudo systemctl enable nginx
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo install -d -o www-data -g www-data /etc/nginx/ssl
+sudo install -d /etc/nginx/exordos
+echo 'include /etc/nginx/exordos/*.conf;' | sudo tee -a /etc/nginx/nginx.conf > /dev/null
+if sudo "$UA_VENV/bin/python" -c "import gcl_sdk.agents.universal.drivers.lb" 2>/dev/null; then
+    if ! grep -q "LBCapabilityDriver" "$UA_CONF"; then
+        sudo awk '/caps_drivers =/{print; print "    LBCapabilityDriver,"; next}1' \
+            "$UA_CONF" | sudo tee "$UA_CONF.tmp" > /dev/null
+        sudo mv "$UA_CONF.tmp" "$UA_CONF"
+    fi
+fi
+
 sudo tee -a /etc/sysctl.conf > /dev/null <<EOL
 net.ipv4.ip_forward=1
 EOL
