@@ -109,14 +109,6 @@ if sudo "$UA_VENV/bin/python" -c "import gcl_sdk.agents.universal.drivers.border
     fi
 fi
 
-# The parent realm may run an LB on this node (LB type `node`, paas_lb_node
-# capability), e.g. the realm's element repository. The exordos-lbaas base
-# image (exordos.yaml base_image_url) already ships nginx and enables
-# LBCapabilityDriver; don't repeat its setup here -- a second
-# `include /etc/nginx/exordos/*.conf;` duplicates the driver's `stream` block.
-# The exordos_custom profile ends the build with `rm -fr /var/log/*`, which
-# takes /var/log/nginx along, and nginx refuses to start without it: have
-# systemd recreate it on every boot.
 echo 'd /var/log/nginx 0755 root adm -' | sudo tee /etc/tmpfiles.d/nginx-log.conf > /dev/null
 
 sudo tee -a /etc/sysctl.conf > /dev/null <<EOL
