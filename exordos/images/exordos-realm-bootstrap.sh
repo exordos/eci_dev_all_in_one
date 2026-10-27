@@ -20,7 +20,8 @@
 #
 # The parent realm's core delivers /etc/exordos/realm_spec.json to this node
 # (a config resource created by the exordos ecosystem builder agent, see
-# exordos_ecosystem docs/realm-manager.md). Once the file arrives, the nested
+# exordos_ecosystem docs/realm-manager.md), together with realm.env.
+# Once both files arrive, the nested
 # exordos core VM is bootstrapped with the pre-assigned realm identity. The
 # booted child then self-reports to the ecosystem and the managed realm
 # becomes ACTIVE.
@@ -40,24 +41,25 @@ if [ -f "$MARKER" ]; then
     exit 0
 fi
 
-# Single source of truth for INVENTORY and the nested core network
-# (NESTED_CIDR / NESTED_GATEWAY / NESTED_CORE_IP), written at build time.
-# The nested network is deliberately distinct from the parent realm network
-# (10.20.0.0/22) so it never collides on a nested realm node.
+# The image supplies the element inventory; the parent supplies the managed
+# realm network so bootstrap and the Border use the same addresses.
 # shellcheck source=/dev/null
-. "$BUILD_ENV_FILE"
+. "$BUILD_ENV_FILE" || exit 1
 
-echo "Waiting for the realm spec at $REALM_SPEC ..."
-while [ ! -s "$REALM_SPEC" ]; do
+echo "Waiting for the realm spec at $REALM_SPEC and network config at $ENV_FILE ..."
+while [ ! -s "$REALM_SPEC" ] || [ ! -s "$ENV_FILE" ]; do
     sleep 5
 done
 
-echo "Realm spec found, bootstrapping the nested core VM"
+# Do not fall back to the image's network when the delivered config is incomplete.
+unset NESTED_CIDR NESTED_GATEWAY NESTED_CORE_IP
+# shellcheck source=/dev/null
+. "$ENV_FILE" || exit 1
+: "${NESTED_CIDR:?Missing NESTED_CIDR in realm.env}"
+: "${NESTED_GATEWAY:?Missing NESTED_GATEWAY in realm.env}"
+: "${NESTED_CORE_IP:?Missing NESTED_CORE_IP in realm.env}"
 
-if [ -f "$ENV_FILE" ]; then
-    . "$ENV_FILE"
-    echo "env file $ENV_FILE found, sourced"
-fi
+echo "Realm spec and network config found, bootstrapping the nested core VM"
 
 HYPER_URI="qemu+tcp://${NESTED_GATEWAY}/system"
 
