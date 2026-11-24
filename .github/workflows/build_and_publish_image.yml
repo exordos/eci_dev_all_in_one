@@ -21,6 +21,9 @@ jobs:
     runs-on: [self-hosted, vm]
     if: ${{ github.actor != 'dependabot[bot]' }}
     name: Build realm image
+    concurrency:
+      group: build-publish-${{ github.event_name == 'schedule' && 'scheduled-release' || github.run_id }}
+      cancel-in-progress: false
     strategy:
       fail-fast: false
     steps:
@@ -33,11 +36,27 @@ jobs:
         shell: bash
         run: |
           git fetch origin --tags
-          latest_tag=$(git tag --list | sort -V | awk '/^[0-9]+\.[0-9]+\.[0-9]+$/ { tag = $0 } END { print tag }')
-          IFS=. read -r major minor patch <<< "${latest_tag:-0.0.0}"
-          next_tag="$major.$minor.$((10#$patch + 1))"
-          git tag "$next_tag" HEAD
-          git push origin "refs/tags/$next_tag"
+          # The run ID survives retries; the annotation reserves its version.
+          reservation="Scheduled release for GitHub Actions run $GITHUB_RUN_ID"
+          release_tag=$(git for-each-ref --format='%(refname:strip=2) %(contents:subject)' refs/tags |
+            awk -v reservation="$reservation" '$1 ~ /^[0-9]+\.[0-9]+\.[0-9]+$/ { tag = $1; sub(/^[^ ]+ /, ""); if ($0 == reservation) print tag }')
+          if [[ -z "$release_tag" ]]; then
+            latest_tag=$(git tag --list | sort -V | awk '/^[0-9]+\.[0-9]+\.[0-9]+$/ { tag = $0 } END { print tag }')
+            IFS=. read -r major minor patch <<< "${latest_tag:-0.0.0}"
+            release_tag="$major.$minor.$((10#$patch + 1))"
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              tag -a "$release_tag" HEAD -m "$reservation"
+            git push origin "refs/tags/$release_tag"
+          fi
+          [[ "$(git rev-parse "$release_tag^{commit}")" == "$(git rev-parse HEAD)" ]]
+          # Exordos picks the highest tag on HEAD. Hide other tags locally so
+          # retries retain their version even after a later release of HEAD.
+          while IFS= read -r tag; do
+            if [[ "$tag" != "$release_tag" ]]; then
+              git tag -d "$tag"
+            fi
+          done < <(git tag --points-at HEAD)
+          echo "Building scheduled release $release_tag"
       - name: Build image
         env:
           DEV_ACCESS: 1
